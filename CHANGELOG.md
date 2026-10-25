@@ -2,7 +2,7 @@
 
 Until 1.0, a minor release may change the API; its entry says what to change in an app.
 
-## Unreleased
+## v0.1.0 (2026-10-25)
 
 The first release: tickit's `internal/doc`, extracted as a module of its own, with no node type of tickit's left in it. To move an app from `internal/doc`:
 
