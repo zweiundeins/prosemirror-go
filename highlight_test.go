@@ -13,23 +13,23 @@ func TestRenderHighlighted(t *testing.T) {
 		hs   []Highlight
 		html string
 	}{
-		{inPara(text("Hello world")), []Highlight{{"c1", 7, 12}}, `<p>Hello <mark class="highlight" data-highlight="c1">world</mark></p>`},
+		{inPara(text("Hello world")), []Highlight{{ID: "c1", From: 7, To: 12}}, `<p>Hello <mark class="highlight" data-highlight="c1">world</mark></p>`},
 		{inPara(text("Hello world")), nil, `<p>Hello world</p>`},
 		// Overlapping ranges: the overlap names both.
-		{inPara(text("abcdef")), []Highlight{{"b", 3, 6}, {"a", 1, 4}}, `<p><mark class="highlight" data-highlight="a">ab</mark><mark class="highlight" data-highlight="a b">c</mark><mark class="highlight" data-highlight="b">de</mark>f</p>`},
+		{inPara(text("abcdef")), []Highlight{{ID: "b", From: 3, To: 6}, {ID: "a", From: 1, To: 4}}, `<p><mark class="highlight" data-highlight="a">ab</mark><mark class="highlight" data-highlight="a b">c</mark><mark class="highlight" data-highlight="b">de</mark>f</p>`},
 		// Inside other marks, and across text nodes.
-		{inPara(text("bold", strong) + `,` + text(" plain")), []Highlight{{"c1", 3, 8}}, `<p><strong>bo<mark class="highlight" data-highlight="c1">ld</mark></strong><mark class="highlight" data-highlight="c1"> pl</mark>ain</p>`},
+		{inPara(text("bold", strong) + `,` + text(" plain")), []Highlight{{ID: "c1", From: 3, To: 8}}, `<p><strong>bo<mark class="highlight" data-highlight="c1">ld</mark></strong><mark class="highlight" data-highlight="c1"> pl</mark>ain</p>`},
 		// Across two blocks; an id is escaped.
-		{two, []Highlight{{`x"y`, 7, 17}}, `<p>Hello <mark class="highlight" data-highlight="x&#34;y">world</mark></p><p><mark class="highlight" data-highlight="x&#34;y">sec</mark>ond</p>`},
+		{two, []Highlight{{ID: `x"y`, From: 7, To: 17}}, `<p>Hello <mark class="highlight" data-highlight="x&#34;y">world</mark></p><p><mark class="highlight" data-highlight="x&#34;y">sec</mark>ond</p>`},
 		// An atom in the range stays as it is.
-		{inPara(text("a") + `,{"type":"tag","attrs":{"name":"WEB-99"}},` + text("b")), []Highlight{{"c", 1, 4}}, `<p><mark class="highlight" data-highlight="c">a</mark>#WEB-99<mark class="highlight" data-highlight="c">b</mark></p>`},
+		{inPara(text("a") + `,{"type":"tag","attrs":{"name":"WEB-99"}},` + text("b")), []Highlight{{ID: "c", From: 1, To: 4}}, `<p><mark class="highlight" data-highlight="c">a</mark>#WEB-99<mark class="highlight" data-highlight="c">b</mark></p>`},
 		// Code blocks too.
-		{docOf(`{"type":"code_block","content":[` + text("x := 1") + `]}`), []Highlight{{"c", 1, 2}}, `<pre><code><mark class="highlight" data-highlight="c">x</mark> := 1</code></pre>`},
+		{docOf(`{"type":"code_block","content":[` + text("x := 1") + `]}`), []Highlight{{ID: "c", From: 1, To: 2}}, `<pre><code><mark class="highlight" data-highlight="c">x</mark> := 1</code></pre>`},
 		// A cut inside a surrogate pair moves before it; a range beyond the
 		// document, empty or reversed breaks nothing.
-		{inPara(text("a😀b")), []Highlight{{"c", 2, 3}}, `<p>a😀b</p>`},
-		{inPara(text("a😀b")), []Highlight{{"c", 2, 4}}, `<p>a<mark class="highlight" data-highlight="c">😀</mark>b</p>`},
-		{inPara(text("ab")), []Highlight{{"c", 2, 99}, {"d", 2, 2}, {"e", 3, 1}}, `<p>a<mark class="highlight" data-highlight="c">b</mark></p>`},
+		{inPara(text("a😀b")), []Highlight{{ID: "c", From: 2, To: 3}}, `<p>a😀b</p>`},
+		{inPara(text("a😀b")), []Highlight{{ID: "c", From: 2, To: 4}}, `<p>a<mark class="highlight" data-highlight="c">😀</mark>b</p>`},
+		{inPara(text("ab")), []Highlight{{ID: "c", From: 2, To: 99}, {ID: "d", From: 2, To: 2}, {ID: "e", From: 3, To: 1}}, `<p>a<mark class="highlight" data-highlight="c">b</mark></p>`},
 	}
 	for _, c := range cases {
 		d := mustDoc(t, c.doc)
@@ -53,12 +53,12 @@ func TestRenderHighlighted(t *testing.T) {
 func TestBlockCacheHighlights(t *testing.T) {
 	d := mustDoc(t, docOf(`{"type":"paragraph","content":[`+text("one")+`]}`, `{"type":"paragraph","content":[`+text("two")+`]}`))
 	bc := NewBlockCache(testHTML)
-	if got := bc.RenderHighlighted(d, testRes{}, []Highlight{{"c", 1, 2}}); got != `<p><mark class="highlight" data-highlight="c">o</mark>ne</p><p>two</p>` {
+	if got := bc.RenderHighlighted(d, testRes{}, []Highlight{{ID: "c", From: 1, To: 2}}); got != `<p><mark class="highlight" data-highlight="c">o</mark>ne</p><p>two</p>` {
 		t.Errorf("first %s", got)
 	}
 	second := d.Child(1)
 	before := bc.m[second]
-	if got := bc.RenderHighlighted(d, testRes{}, []Highlight{{"c", 6, 8}}); got != `<p>one</p><p><mark class="highlight" data-highlight="c">tw</mark>o</p>` {
+	if got := bc.RenderHighlighted(d, testRes{}, []Highlight{{ID: "c", From: 6, To: 8}}); got != `<p>one</p><p><mark class="highlight" data-highlight="c">tw</mark>o</p>` {
 		t.Errorf("moved %s", got)
 	}
 	if bc.m[second] == before {

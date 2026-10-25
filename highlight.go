@@ -6,13 +6,15 @@ import (
 	"strings"
 )
 
-// Highlight is a range of a document that a render shows marked, such as
-// the text an inline comment is on. Its positions are the document's; the
-// highlights live outside the document, so the schema knows nothing of
-// them.
+// Highlight is a part of a document that a render shows marked, such as
+// what an inline comment is on: a range of text, or with Node a node by
+// its stable id (HTML.IDs), whose element is marked as a whole. Its
+// positions are the document's; the highlights live outside the document,
+// so the schema knows nothing of them.
 type Highlight struct {
 	ID       string
 	From, To int
+	Node     string // the id of a node of a type in HTML.IDs; From and To are then unused
 }
 
 // hlState is where the renderer is in the document, and the ranges it
@@ -26,32 +28,74 @@ type hlState struct {
 // inside each highlight in <mark class="highlight" data-highlight="<ids>">
 // (HighlightClass, HighlightAttr), the ids of every highlight over it
 // separated by spaces. Inline nodes that are not text stay unmarked; a
-// range outside the document marks what it covers of it.
+// range outside the document marks what it covers of it. A highlight of
+// a node adds the class and the attribute to the element its function
+// opens with Open.
 func (h *HTML[R]) RenderHighlighted(d Doc, r R, hs []Highlight) string {
+	nodes := nodeHighlights(hs)
 	hs = sortHighlights(hs)
 	var b strings.Builder
 	b.Grow(d.content.size * 2)
 	pos := 0
 	for _, n := range d.content.nodes {
-		b.WriteString(h.renderBlockAt(n, r, pos, hs))
+		b.WriteString(h.renderBlockAt(n, r, pos, hs, nodes))
 		pos += n.size
 	}
 	return b.String()
 }
 
 // renderBlockAt renders a block that starts at pos.
-func (h *HTML[R]) renderBlockAt(n *Node, r R, pos int, hs []Highlight) string {
+func (h *HTML[R]) renderBlockAt(n *Node, r R, pos int, hs []Highlight, nodes map[string]string) string {
 	var b strings.Builder
 	w := h.writer(&b, r)
 	if highlightsIn(hs, pos, pos+n.size) != "" {
 		w.hl = &hlState{pos: pos, hs: hs}
 	}
+	w.nodeHL = nodes
 	w.block(n)
 	return b.String()
 }
 
+// nodeHighlights are the highlights of nodes: by node id, the ids of the
+// highlights on it, sorted and separated by spaces.
+func nodeHighlights(hs []Highlight) map[string]string {
+	var m map[string][]string
+	for _, h := range hs {
+		if h.Node != "" && h.ID != "" {
+			if m == nil {
+				m = map[string][]string{}
+			}
+			m[h.Node] = append(m[h.Node], h.ID)
+		}
+	}
+	if m == nil {
+		return nil
+	}
+	out := make(map[string]string, len(m))
+	for k, ids := range m {
+		slices.Sort(ids)
+		out[k] = strings.Join(slices.Compact(ids), " ")
+	}
+	return out
+}
+
+// nodeKey names the node highlights inside a block: its part of the
+// block's key in the BlockCache.
+func (h *HTML[R]) nodeKey(n *Node, nodes map[string]string) string {
+	if len(nodes) == 0 || len(h.IDs) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	h.IDs.each(n, func(_ *Node, id string) {
+		if hl, ok := nodes[id]; ok {
+			b.WriteString("#" + id + "=" + hl + ";")
+		}
+	})
+	return b.String()
+}
+
 func sortHighlights(hs []Highlight) []Highlight {
-	out := slices.DeleteFunc(slices.Clone(hs), func(h Highlight) bool { return h.From >= h.To || h.ID == "" })
+	out := slices.DeleteFunc(slices.Clone(hs), func(h Highlight) bool { return h.From >= h.To || h.ID == "" || h.Node != "" })
 	slices.SortFunc(out, func(a, b Highlight) int {
 		if a.From != b.From {
 			return a.From - b.From
@@ -108,13 +152,7 @@ func (w *HTMLWriter[R]) text(n *Node) {
 			w.Text(n.text[a:b])
 			continue
 		}
-		class, attr := w.h.HighlightClass, w.h.HighlightAttr
-		if class == "" {
-			class = "highlight"
-		}
-		if attr == "" {
-			attr = "data-highlight"
-		}
+		class, attr := w.h.highlight()
 		w.Raw(`<mark class="` + class + `" ` + attr + `="`)
 		w.Text(strings.Join(ids, " "))
 		w.Raw(`">`)

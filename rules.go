@@ -42,6 +42,9 @@ type Rules struct {
 	// Marks are the rules per mark type name; n is the node the mark is
 	// on.
 	Marks map[string]func(m *Mark, n *Node) error
+	// IDs are the node types with a stable id: in the changed blocks each
+	// has one, and no other node of the document has the same.
+	IDs IDs
 }
 
 func (r Rules) noun() string {
@@ -83,7 +86,7 @@ func (r Rules) Check(before, after Doc) error {
 			return err
 		}
 	}
-	return nil
+	return r.IDs.check(after, changedBlocks(before, after))
 }
 
 // changedBlocks returns the top-level blocks of after that are not, by

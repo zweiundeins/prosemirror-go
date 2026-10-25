@@ -27,8 +27,41 @@ type Directive struct {
 	// a block without content; empty, or an empty value, writes none.
 	Label string
 	// Attrs are the attributes written in braces, in order; an attribute
-	// equal to its default is left out.
+	// equal to its default is left out. A value that is not a string is
+	// written as JSON, unless Formats has its own form.
 	Attrs []string
+	// Formats write and read attributes in a form of their own, such as
+	// a list of ids separated by spaces (SpaceList).
+	Formats map[string]AttrFormat
+}
+
+// AttrFormat writes an attribute's value as the text of a directive and
+// reads it back.
+type AttrFormat struct {
+	Format func(v any) string
+	Parse  func(s string) (any, error)
+}
+
+// SpaceList writes an array of strings as the strings separated by
+// spaces, `photos="p1 p2 p3"`, and reads it back.
+var SpaceList = AttrFormat{
+	Format: func(v any) string {
+		list, _ := v.([]any)
+		parts := make([]string, 0, len(list))
+		for _, x := range list {
+			if s, ok := x.(string); ok {
+				parts = append(parts, s)
+			}
+		}
+		return strings.Join(parts, " ")
+	},
+	Parse: func(s string) (any, error) {
+		out := []any{}
+		for _, f := range strings.Fields(s) {
+			out = append(out, f)
+		}
+		return out, nil
+	},
 }
 
 func (d Directive) name(n *Node) string {
@@ -90,6 +123,9 @@ func directiveAttrs(n *Node, d Directive) string {
 			s = x
 		default:
 			s = string(appendValue(nil, v))
+		}
+		if f := d.Formats[name]; f.Format != nil {
+			s = f.Format(v)
 		}
 		if b.Len() > 0 {
 			b.WriteByte(' ')
@@ -244,7 +280,11 @@ func (m *Markdown[R]) DirectiveNode(s *Schema, d ParsedDirective, content []*Nod
 			if i < 0 || !contains(spec.Attrs, kv[0]) {
 				continue
 			}
-			v, err := t.attrs[i].fromText(kv[1])
+			parse := t.attrs[i].fromText
+			if f := spec.Formats[kv[0]]; f.Parse != nil {
+				parse = f.Parse
+			}
+			v, err := parse(kv[1])
 			if err != nil {
 				return nil, fmt.Errorf("prosemirror: directive %s: attribute %s: %w", d.Name, kv[0], err)
 			}

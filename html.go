@@ -2,6 +2,7 @@ package prosemirror
 
 import (
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -30,8 +31,15 @@ type HTML[R any] struct {
 	Dynamic []string
 	// HighlightClass and HighlightAttr make the element of highlighted
 	// text (RenderHighlighted): <mark class="highlight"
-	// data-highlight="<ids>"> by default.
+	// data-highlight="<ids>"> by default; a highlighted node's element
+	// gets the same class and attribute.
 	HighlightClass, HighlightAttr string
+	// IDs are the node types with a stable id, for highlights of nodes.
+	IDs IDs
+	// DynamicKey names what a Dynamic node shows for r now: BlockCache
+	// keeps a block whose Dynamic nodes' keys stay the same. Without it,
+	// or with "", the block renders every time.
+	DynamicKey func(r R, n *Node) string
 }
 
 // MarkHTML renders a mark type.
@@ -49,9 +57,11 @@ type MarkHTML[R any] struct {
 type HTMLWriter[R any] struct {
 	R R
 
-	h  *HTML[R]
-	b  *strings.Builder
-	hl *hlState // nil: no highlights
+	h      *HTML[R]
+	b      *strings.Builder
+	hl     *hlState          // nil: no highlights of text
+	nodeHL map[string]string // highlight ids by node id
+	marked string            // the highlight ids of the current block's element
 
 	// What the current block's element and content get instead of the
 	// usual: attributes Open adds, and a body Content renders.
@@ -71,15 +81,41 @@ func (w *HTMLWriter[R]) Text(s string) { escapeHTML(w.b, s) }
 // current block's element (data-diff in a comparison). A block function
 // calls it once, for its outermost element.
 func (w *HTMLWriter[R]) Open(tag string, attrs ...string) {
+	marked := w.marked
+	w.marked = ""
+	class, attr := w.h.highlight()
 	w.b.WriteString("<" + tag)
 	for i := 0; i+1 < len(attrs); i += 2 {
+		v := attrs[i+1]
+		if marked != "" && attrs[i] == "class" {
+			v, class = v+" "+class, ""
+		}
 		w.b.WriteString(" " + attrs[i] + `="`)
-		escapeHTML(w.b, attrs[i+1])
+		escapeHTML(w.b, v)
+		w.b.WriteByte('"')
+	}
+	if marked != "" {
+		if class != "" {
+			w.b.WriteString(` class="` + class + `"`)
+		}
+		w.b.WriteString(" " + attr + `="`)
+		escapeHTML(w.b, marked)
 		w.b.WriteByte('"')
 	}
 	w.b.WriteString(w.extra)
 	w.extra = ""
 	w.b.WriteByte('>')
+}
+
+func (h *HTML[R]) highlight() (class, attr string) {
+	class, attr = h.HighlightClass, h.HighlightAttr
+	if class == "" {
+		class = "highlight"
+	}
+	if attr == "" {
+		attr = "data-highlight"
+	}
+	return class, attr
 }
 
 // Content writes n's content: its blocks, its inline content with marks
@@ -164,14 +200,19 @@ func (w *HTMLWriter[R]) block(n *Node) {
 // wrap renders a block with extra attributes on its element and body in
 // place of its content; body nil renders the content.
 func (w *HTMLWriter[R]) wrap(n *Node, extra string, body func()) {
-	pe, pb, pn := w.extra, w.body, w.pending
-	w.extra, w.body, w.pending = extra, body, n
+	pe, pb, pn, pm := w.extra, w.body, w.pending, w.marked
+	w.extra, w.body, w.pending, w.marked = extra, body, n, ""
+	if w.nodeHL != nil {
+		if id, ok := w.h.IDs.Of(n); ok && id != "" {
+			w.marked = w.nodeHL[id]
+		}
+	}
 	if f := w.h.Nodes[n.typ.name]; f != nil {
 		f(w, n)
 	} else {
 		w.Content(n)
 	}
-	w.extra, w.body, w.pending = pe, pb, pn
+	w.extra, w.body, w.pending, w.marked = pe, pb, pn, pm
 }
 
 // defaultBody renders a node's content the usual way.
@@ -263,7 +304,8 @@ func NewBlockCache[R any](h *HTML[R]) *BlockCache[R] { return &BlockCache[R]{h: 
 // its start, that it was rendered with.
 type cachedBlock struct {
 	html, marks string
-	live        bool // is or holds a Dynamic node: rendered every time
+	live        bool   // is or holds a Dynamic node
+	key         string // the Dynamic nodes' keys it was rendered with
 }
 
 // Render renders the document, reusing the HTML of unchanged blocks, and
@@ -276,18 +318,23 @@ func (c *BlockCache[R]) Render(d Doc, r R) string { return c.RenderHighlighted(d
 func (c *BlockCache[R]) RenderHighlighted(d Doc, r R, hs []Highlight) string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	nodes := nodeHighlights(hs)
 	hs = sortHighlights(hs)
 	next := make(map[*Node]cachedBlock, len(d.content.nodes))
 	var b strings.Builder
 	pos := 0
 	for _, n := range d.content.nodes {
-		marks := highlightsIn(hs, pos, pos+n.size)
+		marks := highlightsIn(hs, pos, pos+n.size) + c.h.nodeKey(n, nodes)
 		e, ok := c.m[n]
 		if !ok {
 			e.live = c.h.dynamic(n)
 		}
-		if !ok || e.live || e.marks != marks {
-			e.html, e.marks = c.h.renderBlockAt(n, r, pos, hs), marks
+		key := ""
+		if e.live {
+			key = c.h.dynamicKey(r, n)
+		}
+		if !ok || e.live && (key == "" || key != e.key) || e.marks != marks {
+			e.html, e.marks, e.key = c.h.renderBlockAt(n, r, pos, hs, nodes), marks, key
 		}
 		next[n] = e
 		b.WriteString(e.html)
@@ -302,6 +349,38 @@ func (c *BlockCache[R]) Reset() {
 	c.mu.Lock()
 	c.m = nil
 	c.mu.Unlock()
+}
+
+// dynamicKey is the keys of the Dynamic nodes n is or holds, "" when one
+// has none.
+func (h *HTML[R]) dynamicKey(r R, n *Node) string {
+	if h.DynamicKey == nil {
+		return ""
+	}
+	var b strings.Builder
+	ok := true
+	var walk func(n *Node)
+	walk = func(n *Node) {
+		if !ok {
+			return
+		}
+		if slices.Contains(h.Dynamic, n.typ.name) {
+			k := h.DynamicKey(r, n)
+			if k == "" {
+				ok = false
+				return
+			}
+			b.WriteString(strconv.Itoa(len(k)) + ":" + k)
+		}
+		for _, c := range n.content.nodes {
+			walk(c)
+		}
+	}
+	walk(n)
+	if !ok {
+		return ""
+	}
+	return b.String()
 }
 
 // dynamic reports whether n is or holds a node of a Dynamic type.

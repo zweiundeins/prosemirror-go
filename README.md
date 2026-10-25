@@ -25,6 +25,7 @@ Everything is in package `prosemirror`. Steps reach into the model's internals o
 | `Markdown[R]` | per node and mark type a function, and `Directives` for node types Markdown has no syntax for |
 | `LeafText` | per leaf type what it stands for in plain text, for search and feeds |
 | `Rules` | per node and mark type a check, plus size bounds; built per commit, so a rule can ask the app's data |
+| `IDs` | the node types with a stable id and its attribute, `{"route": "id"}`: `Rules.IDs` refuses a missing or a repeated id, `IDs.Find` and `FindNode` find the node, `HTML.IDs` lets a highlight mark the node's element |
 
 ```go
 type Names map[string]string // the app's resolver: id to name
@@ -49,9 +50,13 @@ fmt.Println(html.Render(next, Names{"u1": "Ada"}))
 
 **Rules with the app's context.** `Rules` is a value of plain functions. An app builds it for each commit, with closures over what the commit may see (its database transaction, the actor), so a rule can refuse an id that is not the app's or that the person may not name. `Check` runs the schema check, the size bounds and the rules on the top-level blocks the commit changed only. A refusal is a `*RuleError` whose message a person reads.
 
-**Directives.** A node type Markdown has no syntax for writes as a generic directive of the [CommonMark directive proposal](https://talk.commonmark.org/t/generic-directives-plugins-syntax/444), the syntax [remark-directive](https://github.com/remarkjs/remark-directive) reads: `:stop[Grimselpass]{photo="p1"}` inline, `::route{from="2026-07-14T07:30Z" to="2026-07-14T15:10Z"}` for a block, `:::note{kind="tip"}` around blocks. `Directive` maps a node type to its name, the attribute that is its label and the attributes it writes; an attribute at its default is left out. An importer reads one back with `ParseDirective` and `Markdown.DirectiveNode`, which types each attribute by the schema. The Markdown parser itself is the app's.
+**Directives.** A node type Markdown has no syntax for writes as a generic directive of the [CommonMark directive proposal](https://talk.commonmark.org/t/generic-directives-plugins-syntax/444), the syntax [remark-directive](https://github.com/remarkjs/remark-directive) reads: `:stop[Grimselpass]{photo="p1"}` inline, `::route{from="2026-07-14T07:30Z" to="2026-07-14T15:10Z"}` for a block, `:::note{kind="tip"}` around blocks. `Directive` maps a node type to its name, the attribute that is its label and the attributes it writes; an attribute at its default is left out, and one that is not a string is JSON unless `Formats` gives it a form of its own (`SpaceList`: `photos="p1 p2 p3"`). An importer reads one back with `ParseDirective` and `Markdown.DirectiveNode`, which types each attribute by the schema. The Markdown parser itself is the app's.
 
-**Highlights.** `RenderHighlighted` marks ranges kept outside the document, such as the text of inline comments, in `<mark>` elements (`HighlightClass`, `HighlightAttr`), and `MapRange` moves a range through steps.
+**Highlights.** `RenderHighlighted` marks ranges kept outside the document, such as the text of inline comments, in `<mark>` elements (`HighlightClass`, `HighlightAttr`), and `MapRange` moves a range through steps. A highlight with `Node` set names a node by its stable id instead, and the class and attribute go on the element its function opens with `Open`: a comment on an image or a map, which has no text to select. Such an anchor needs no mapping, and is gone when `IDs.Find` no longer finds the node.
+
+**Stable ids.** A node type opts in with an attribute in the schema (a string, default `""`) and an entry in `IDs`. coedit's editor gives each such node an id when it is made and a fresh one to a copy (a paste, a split); the server's `Rules.IDs` refuses a commit that leaves one without an id or with an id another node holds, on the blocks the commit changed. Add ids to existing documents before turning the rule on: a restore of an old version changes its blocks, and their nodes would be refused.
+
+**Dynamic blocks.** `HTML.Dynamic` names node types whose HTML changes while the node does not; `HTML.DynamicKey(r, n)` says what such a node shows now (a version, a hash), and `BlockCache` keeps a block whose keys stay the same. Without a key it renders the block every time.
 
 ## Tests
 
