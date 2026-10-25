@@ -166,3 +166,39 @@ func TestParseDirective(t *testing.T) {
 		t.Error("a number attribute took a word")
 	}
 }
+
+// Edge spaces go outside the marks, except for verbatim ones.
+func TestMarkdownEdgeSpaces(t *testing.T) {
+	d := mustDoc(t, inPara(text("start")+`,`+text(" early ", strong)+`,`+text("on", em)+`,`+text("  ", strong)+`,`+text(" x ", `{"type":"code"}`)))
+	md := *testMarkdown
+	md.Marks = map[string]func(w *MarkdownWriter[testRes], m *Mark, n *Node, s string) string{
+		"strong": testMarkdown.Marks["strong"], "em": testMarkdown.Marks["em"],
+		"code": func(w *MarkdownWriter[testRes], m *Mark, n *Node, s string) string { return "`" + s + "`" },
+	}
+	md.Verbatim = []string{"code"}
+	if got := md.Render(d, testResolver); got != "start **early** *on*  ` x `\n" {
+		t.Errorf("got %q", got)
+	}
+}
+
+func TestSplitInline(t *testing.T) {
+	nodes, err := testMarkdown.SplitInline(testSchema, `see :tag[a\]b] and :mention[Ada]{id="x"}\: done :nope[x]`, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, n := range nodes {
+		if n.IsText() {
+			got = append(got, "t:"+n.Text())
+		} else {
+			got = append(got, n.Type().Name())
+		}
+	}
+	if strings.Join(got, "|") != "t:see |tag|t: and |mention|t:: done :nope[x]" {
+		t.Errorf("got %v", got)
+	}
+	raws := []string{}
+	if _, err := testMarkdown.SplitInline(testSchema, `**a** :tag[x] *b*`, func(raw string) ([]*Node, error) { raws = append(raws, raw); return nil, nil }); err != nil || strings.Join(raws, "|") != "**a** | *b*" {
+		t.Errorf("raws %q %v", raws, err)
+	}
+}

@@ -351,3 +351,54 @@ func MarkdownUnescape(s string) string {
 	}
 	return b.String()
 }
+
+// SplitInline reads a line of inline Markdown that holds inline
+// directives: each `:name[label]{…}` that a node type's Directive names
+// becomes its node, and the raw Markdown between them becomes the nodes
+// text returns, so an importer parses emphasis and links only there. With
+// text nil the Markdown between is plain text, unescaped. A colon after a
+// backslash, or one that starts no directive of a node type, stays text.
+func (m *Markdown[R]) SplitInline(s *Schema, line string, text func(raw string) ([]*Node, error)) ([]*Node, error) {
+	if text == nil {
+		text = func(raw string) ([]*Node, error) {
+			if raw == "" {
+				return nil, nil
+			}
+			n, err := s.Text(MarkdownUnescape(raw))
+			if err != nil {
+				return nil, err
+			}
+			return []*Node{n}, nil
+		}
+	}
+	var out []*Node
+	flush := func(raw string) error {
+		if raw == "" {
+			return nil
+		}
+		nodes, err := text(raw)
+		out = append(out, nodes...)
+		return err
+	}
+	start := 0
+	for i := 0; i < len(line); i++ {
+		if line[i] != ':' || (i > 0 && line[i-1] == '\\') {
+			continue
+		}
+		d, n, ok := ParseDirective(line[i:])
+		if !ok || d.Colons != 1 {
+			continue
+		}
+		node, err := m.DirectiveNode(s, d, nil)
+		if err != nil {
+			continue
+		}
+		if err := flush(line[start:i]); err != nil {
+			return nil, err
+		}
+		out = append(out, node)
+		i += n - 1
+		start = i + 1
+	}
+	return out, flush(line[start:])
+}

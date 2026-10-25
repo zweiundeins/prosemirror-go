@@ -1,7 +1,9 @@
 package prosemirror
 
 import (
+	"slices"
 	"strings"
+	"unicode"
 )
 
 // Markdown writes documents as Markdown, as prosemirror-markdown's
@@ -16,7 +18,14 @@ type Markdown[R any] struct {
 	// and nested blocks (Blocks); an inline node writes its text (Write).
 	Nodes map[string]func(w *MarkdownWriter[R], n *Node)
 	// Marks wrap s, the Markdown of node n, in a mark by its type name.
+	// The white space at the edges of a text node is moved outside its
+	// marks first, as prosemirror-markdown's expelEnclosingWhitespace
+	// does: CommonMark reads "** early**" as text, " **early**" as strong.
 	Marks map[string]func(w *MarkdownWriter[R], m *Mark, n *Node, s string) string
+	// Verbatim names the marks whose text keeps its edge white space
+	// inside them, such as code: a node with one of them is wrapped as it
+	// is.
+	Verbatim []string
 	// Directives write node types that Markdown has no syntax for as
 	// generic directives (directive.go).
 	Directives map[string]Directive
@@ -127,14 +136,32 @@ func (w *MarkdownWriter[R]) Inline(n *Node) string {
 			w.out = prev
 			s = one.String()
 		}
-		for i := len(c.marks) - 1; i >= 0; i-- {
-			if f := w.md.Marks[c.marks[i].typ.name]; f != nil {
-				s = f(w, c.marks[i], c, s)
+		lead, trail := "", ""
+		if c.typ.isText && len(c.marks) > 0 && !w.md.verbatim(c.marks) {
+			inner := strings.TrimLeftFunc(s, unicode.IsSpace)
+			lead, s = s[:len(s)-len(inner)], inner
+			inner = strings.TrimRightFunc(s, unicode.IsSpace)
+			trail, s = s[len(inner):], inner
+		}
+		if s != "" {
+			for i := len(c.marks) - 1; i >= 0; i-- {
+				if f := w.md.Marks[c.marks[i].typ.name]; f != nil {
+					s = f(w, c.marks[i], c, s)
+				}
 			}
 		}
-		b.WriteString(s)
+		b.WriteString(lead + s + trail)
 	}
 	return b.String()
+}
+
+func (m *Markdown[R]) verbatim(marks []*Mark) bool {
+	for _, mk := range marks {
+		if slices.Contains(m.Verbatim, mk.typ.name) {
+			return true
+		}
+	}
+	return false
 }
 
 var mdSpecial = strings.NewReplacer(`\`, `\\`, "`", "\\`", `*`, `\*`, `_`, `\_`, `[`, `\[`, `]`, `\]`, `<`, `\<`, `>`, `\>`, `#`, `\#`, `|`, `\|`, `~`, `\~`)
