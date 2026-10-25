@@ -94,6 +94,14 @@ func (w *HTMLWriter[R]) Content(n *Node) {
 	w.defaultBody(n)
 }
 
+// EscapeHTML escapes s as Text does, for HTML an app writes outside a
+// render.
+func EscapeHTML(s string) string {
+	var b strings.Builder
+	escapeHTML(&b, s)
+	return b.String()
+}
+
 func escapeHTML(b *strings.Builder, s string) {
 	start := 0
 	for i := 0; i < len(s); i++ {
