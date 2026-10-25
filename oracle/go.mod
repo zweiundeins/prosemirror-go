@@ -4,7 +4,7 @@ go 1.27.3
 
 require (
 	github.com/dop251/goja v0.0.0-20260926152631-39ec2650adc9
-	github.com/zweiundeins/prosemirror-go v0.0.0
+	github.com/zweiundeins/prosemirror-go v0.1.0
 )
 
 require (
