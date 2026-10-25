@@ -30,5 +30,5 @@ Copyright (C) 2015-2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
 
 Copyright (c) 2023 Greg Zapp (prosemirror-collab-commit)
 
-Both are under the MIT licence above. testdata/oracle/LICENSES.txt holds the
+Both are under the MIT licence above. oracle/LICENSES.txt holds the
 full licence texts of the JavaScript the tests run.

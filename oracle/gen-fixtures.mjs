@@ -14,8 +14,8 @@ import { applyCommit } from './src/rebase.js'
 import { generator } from './src/gen.js'
 
 const here = new URL('.', import.meta.url)
-const out = new URL('../', here)
-const schema = buildSchema(JSON.parse(readFileSync(new URL('../schema.json', here))))
+const out = new URL('../testdata/', here)
+const schema = buildSchema(JSON.parse(readFileSync(new URL('../testdata/schema.json', here))))
 const write = (name, value) => writeFileSync(new URL(name, out), JSON.stringify(value))
 
 function batches(name, kb, n, seed) {

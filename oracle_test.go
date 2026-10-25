@@ -3,65 +3,24 @@ package prosemirror
 import (
 	"encoding/json"
 	"os"
-	"strings"
 	"sync"
 	"testing"
 
-	"github.com/dop251/goja"
+	"github.com/zweiundeins/prosemirror-go/oracle"
 )
 
-// The oracle: testdata/oracle/oracle.js (prosemirror-model 1.25.12 and
-// prosemirror-transform 1.12.2 with the test schema) run in goja. Only
-// tests import goja.
+// The oracle: package oracle runs prosemirror-model 1.25.12 and
+// prosemirror-transform 1.12.2 in goja, here with the test schema.
 
-// goja's String.prototype.split leaves empty strings between the tokens of
-// prosemirror-model's content-expression tokenizer, which V8 does not; the
-// patch drops them, which V8 never produces in the middle.
-const (
-	splitCall    = `.split(/\s*(?=\b|\W|$)/)`
-	splitPatched = `.split(/\s*(?=\b|\W|$)/).filter(function(t){return t!==""})`
-)
+type jsOracle struct{ *oracle.Oracle }
 
-var (
-	oracleOnce sync.Once
-	oracleProg *goja.Program
-	oracleErr  error
-)
-
-type oracle struct {
-	mu sync.Mutex
-	vm *goja.Runtime
-	o  *goja.Object
-}
-
-func loadOracle(t testing.TB) *oracle {
+func loadOracle(t testing.TB) *jsOracle {
 	t.Helper()
-	oracleOnce.Do(func() {
-		src, err := os.ReadFile("testdata/oracle/oracle.js")
-		if err != nil {
-			oracleErr = err
-			return
-		}
-		s := string(src)
-		if !strings.Contains(s, splitCall) {
-			oracleErr = errString("oracle.js: the tokenizer's split call is gone; update the patch")
-			return
-		}
-		s = strings.Replace(s, splitCall, splitPatched, 1)
-		oracleProg, oracleErr = goja.Compile("oracle.js", s, false)
-	})
-	if oracleErr != nil {
-		t.Fatal(oracleErr)
-	}
-	vm := goja.New()
-	if _, err := vm.RunProgram(oracleProg); err != nil {
+	o, err := oracle.New(readFixture(t, "schema.json"))
+	if err != nil {
 		t.Fatal(err)
 	}
-	o := &oracle{vm: vm, o: vm.Get("oracle").ToObject(vm)}
-	if _, err := o.call("init", string(readFixture(t, "schema.json"))); err != nil {
-		t.Fatal(err)
-	}
-	return o
+	return &jsOracle{o}
 }
 
 type errString string
@@ -70,11 +29,11 @@ func (e errString) Error() string { return string(e) }
 
 var (
 	sharedOracleOnce sync.Once
-	sharedOracle     *oracle
+	sharedOracle     *jsOracle
 )
 
 // theOracle returns one oracle shared by the tests of the process.
-func theOracle(t testing.TB) *oracle {
+func theOracle(t testing.TB) *jsOracle {
 	sharedOracleOnce.Do(func() { sharedOracle = loadOracle(t) })
 	if sharedOracle == nil {
 		t.Fatal("oracle failed to load")
@@ -84,14 +43,14 @@ func theOracle(t testing.TB) *oracle {
 
 var (
 	fuzzOracleMu   sync.Mutex
-	fuzzOracle     *oracle
+	fuzzOracle     *jsOracle
 	fuzzOracleUses int
 )
 
 // fuzzRuntime returns an oracle that is replaced every 100 uses: goja keeps
 // what prosemirror-model's WeakMap caches hold, and a fuzz worker would grow
 // past a gigabyte in a few thousand cases.
-func fuzzRuntime(t testing.TB) *oracle {
+func fuzzRuntime(t testing.TB) *jsOracle {
 	fuzzOracleMu.Lock()
 	defer fuzzOracleMu.Unlock()
 	if fuzzOracle == nil || fuzzOracleUses >= 100 {
@@ -101,32 +60,11 @@ func fuzzRuntime(t testing.TB) *oracle {
 	return fuzzOracle
 }
 
-// call runs oracle[name](args...) and returns the result as a string; a
-// JavaScript exception is the error.
-func (o *oracle) call(name string, args ...any) (string, error) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	fn, ok := goja.AssertFunction(o.o.Get(name))
-	if !ok {
-		return "", errString("oracle has no function " + name)
-	}
-	vs := make([]goja.Value, len(args))
-	for i, a := range args {
-		vs[i] = o.vm.ToValue(a)
-	}
-	v, err := fn(goja.Undefined(), vs...)
-	if err != nil {
-		if ex, ok := err.(*goja.Exception); ok {
-			return "", errString(ex.Value().String())
-		}
-		return "", err
-	}
-	return v.String(), nil
-}
+func (o *jsOracle) call(name string, args ...any) (string, error) { return o.Call(name, args...) }
 
-func (o *oracle) must(t testing.TB, name string, args ...any) string {
+func (o *jsOracle) must(t testing.TB, name string, args ...any) string {
 	t.Helper()
-	s, err := o.call(name, args...)
+	s, err := o.Call(name, args...)
 	if err != nil {
 		t.Fatalf("oracle.%s: %v", name, err)
 	}
