@@ -1,5 +1,10 @@
 package prosemirror
 
+import (
+	"crypto/rand"
+	"strconv"
+)
+
 // IDs names the node types that carry a stable id and the attribute that
 // holds it, {"image": "id", "route": "id"}: a node keeps its id through
 // every edit, so a comment, a map or a link can name the node itself. The
@@ -101,4 +106,22 @@ func (ids IDs) check(after Doc, changed []*Node) error {
 		})
 	}
 	return err
+}
+
+// NewID returns a new id for a node an app makes on the server (an
+// import, a whole document it commits), in the format of coedit's editor:
+// 16 characters of 0-9 and a-z, from crypto/rand.
+func NewID() string {
+	var b [9]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		panic(err)
+	}
+	var s []byte
+	for _, x := range b {
+		if x < 36 {
+			s = append(s, '0')
+		}
+		s = strconv.AppendUint(s, uint64(x), 36)
+	}
+	return string(s[:16])
 }

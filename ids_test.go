@@ -1,6 +1,7 @@
 package prosemirror
 
 import (
+	"regexp"
 	"testing"
 )
 
@@ -126,5 +127,19 @@ func TestDirectiveFormats(t *testing.T) {
 	n, err := md.DirectiveNode(s, p, nil)
 	if err != nil || !n.Eq(d.Child(0)) {
 		t.Errorf("back: %v %v", n, err)
+	}
+}
+
+// NewID writes ids as coedit's randomId does: 9 random bytes, each in base
+// 36 padded to two characters, cut to 16.
+func TestNewID(t *testing.T) {
+	format := regexp.MustCompile(`^[0-9a-z]{16}$`)
+	seen := map[string]bool{}
+	for i := 0; i < 1000; i++ {
+		id := NewID()
+		if !format.MatchString(id) || seen[id] {
+			t.Fatalf("id %q", id)
+		}
+		seen[id] = true
 	}
 }
