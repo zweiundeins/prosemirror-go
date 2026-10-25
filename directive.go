@@ -400,5 +400,6 @@ func (m *Markdown[R]) SplitInline(s *Schema, line string, text func(raw string) 
 		i += n - 1
 		start = i + 1
 	}
-	return out, flush(line[start:])
+	err := flush(line[start:])
+	return out, err
 }

@@ -202,3 +202,12 @@ func TestSplitInline(t *testing.T) {
 		t.Errorf("raws %q %v", raws, err)
 	}
 }
+
+// The text after a line's last directive is the last node: flush appends
+// it before the result is read.
+func TestSplitInlineEndsInText(t *testing.T) {
+	nodes, err := testMarkdown.SplitInline(testSchema, `:tag[a] then text`, nil)
+	if err != nil || len(nodes) != 2 || !nodes[1].IsText() || nodes[1].Text() != " then text" {
+		t.Fatalf("%v %v", nodes, err)
+	}
+}
