@@ -1,4 +1,4 @@
-package doc
+package prosemirror
 
 // Slice is a piece of a document with the depth of its open sides, as
 // prosemirror-model's Slice.

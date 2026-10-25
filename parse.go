@@ -1,4 +1,4 @@
-package doc
+package prosemirror
 
 import (
 	"errors"
@@ -240,11 +240,11 @@ func (p *parser) slice(s *Schema) (Slice, error) {
 // ErrBadStep is wrapped by errors for steps the browser never makes:
 // fractional or negative positions, ranges that end before they start,
 // slices open deeper than their content.
-var ErrBadStep = errors.New("doc: malformed step")
+var ErrBadStep = errors.New("prosemirror: malformed step")
 
 type badStepError struct{ msg string }
 
-func (e *badStepError) Error() string { return "doc: malformed step: " + e.msg }
+func (e *badStepError) Error() string { return "prosemirror: malformed step: " + e.msg }
 func (e *badStepError) Unwrap() error { return ErrBadStep }
 
 func errBadStep(msg string) error { return &badStepError{msg} }
@@ -271,11 +271,8 @@ func (s *Schema) ParseNode(data []byte) (*Node, error) {
 	return n, nil
 }
 
-// ParseDoc reads a document of tickit's schema and checks it: it must be a
-// doc node and pass Check.
-func ParseDoc(data []byte) (Doc, error) { return tickit.ParseDoc(data) }
-
-// ParseDoc reads a document and checks it.
+// ParseDoc reads a document and checks it: it must be of the top node's
+// type and pass Check.
 func (s *Schema) ParseDoc(data []byte) (Doc, error) {
 	n, err := s.ParseNode(data)
 	if err != nil {

@@ -1,4 +1,4 @@
-package doc
+package prosemirror
 
 import (
 	"strings"
@@ -7,7 +7,7 @@ import (
 
 // FindInBlock finds the nth occurrence (from 0) of text in the top-level
 // block at index block, within one textblock and outside atoms, as a
-// reader's selection in the rendered page names it (FR-105): any run of
+// reader's selection in the rendered document names it: any run of
 // white space matches any run of white space. It returns the positions
 // before and after the text.
 func FindInBlock(d Doc, block int, text string, nth int) (from, to int, ok bool) {
@@ -88,17 +88,4 @@ func matchAt(runes []rune, i int, want []rune) (int, bool) {
 		j++
 	}
 	return j, true
-}
-
-// ChipStep is the step that puts an issue's chip in place of the range
-// from, to (FR-105).
-func ChipStep(from, to int, key string) (Step, error) {
-	b := []byte(`{"stepType":"replace","from":`)
-	b = appendNumber(b, float64(from))
-	b = append(b, `,"to":`...)
-	b = appendNumber(b, float64(to))
-	b = append(b, `,"slice":{"content":[{"type":"issue_chip","attrs":{"key":`...)
-	b = appendString(b, key)
-	b = append(b, `}}]}}`...)
-	return tickit.ParseStep(b)
 }

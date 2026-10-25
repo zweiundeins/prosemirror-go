@@ -1,8 +1,8 @@
-package doc
+package prosemirror
 
 // Rebase maps steps made on the document before `since` over `since`,
 // applies to doc what still applies, and returns the new document and the
-// steps as applied. It is the writer's rebase: applyCommit of
+// steps as applied. It is a server's rebase: applyCommit of
 // @stepwisehq/prosemirror-collab-commit. A mapped step that no longer fits
 // is dropped, as the browser drops it; any other error refuses the commit.
 func Rebase(doc Doc, since, steps []Step) (Doc, []Step, error) {

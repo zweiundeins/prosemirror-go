@@ -1,4 +1,4 @@
-package doc
+package prosemirror
 
 import (
 	"errors"
@@ -23,7 +23,7 @@ type Step interface {
 // StepFailed is a failed StepResult: the step did not fit the document.
 type StepFailed struct{ Reason string }
 
-func (e *StepFailed) Error() string { return "doc: step failed: " + e.Reason }
+func (e *StepFailed) Error() string { return "prosemirror: step failed: " + e.Reason }
 
 // IsStepFailed reports whether err is a failed StepResult.
 func IsStepFailed(err error) bool {
@@ -365,9 +365,6 @@ func MarshalSteps(steps []Step) ([]byte, error) {
 	return append(b, ']'), nil
 }
 
-// ParseSteps reads a JSON array of steps of the five allowed types.
-func ParseSteps(data []byte) ([]Step, error) { return tickit.ParseSteps(data) }
-
 // ParseStep reads one step.
 func (s *Schema) ParseStep(data []byte) (Step, error) {
 	p := &parser{data: data}
@@ -396,29 +393,8 @@ func (s *Schema) ParseSteps(data []byte) ([]Step, error) {
 	return steps, p.end()
 }
 
-// Commit limits beyond the schema.
-const (
-	MaxCommitSteps = 500
-	MaxCommitBytes = 256 << 10
-)
-
-// ParseCommit reads the steps of a commit: at most 500 steps in 256 KB.
-func ParseCommit(data []byte) ([]Step, error) {
-	if len(data) > MaxCommitBytes {
-		return nil, &RuleError{Msg: "This change is too large to save at once."}
-	}
-	steps, err := ParseSteps(data)
-	if err != nil {
-		return nil, err
-	}
-	if len(steps) > MaxCommitSteps {
-		return nil, &RuleError{Msg: "This change has too many steps to save at once."}
-	}
-	return steps, nil
-}
-
 // ErrStepType is wrapped by the error for a step type the server refuses.
-var ErrStepType = errors.New("doc: step type not allowed")
+var ErrStepType = errors.New("prosemirror: step type not allowed")
 
 func (p *parser) step(s *Schema) (Step, error) {
 	if p.peek() != '{' {

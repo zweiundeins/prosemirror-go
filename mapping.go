@@ -1,4 +1,4 @@
-package doc
+package prosemirror
 
 // StepMap maps positions across one step, as prosemirror-transform's
 // StepMap: ranges are (start, oldSize, newSize) triples.

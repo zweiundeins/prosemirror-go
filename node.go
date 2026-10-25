@@ -1,4 +1,4 @@
-package doc
+package prosemirror
 
 import (
 	"math"
@@ -445,7 +445,11 @@ func (t *NodeType) Create(attrs map[string]any, content []*Node, marks ...*Mark)
 		o := NewObject()
 		for _, a := range t.attrs {
 			if x, ok := attrs[a.name]; ok {
-				o.Set(a.name, x)
+				v, err := jsValue(x)
+				if err != nil {
+					return nil, err
+				}
+				o.Set(a.name, v)
 			}
 		}
 		v = o

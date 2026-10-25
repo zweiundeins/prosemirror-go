@@ -1,4 +1,4 @@
-package doc
+package prosemirror
 
 // ResolvedPos is a position in a document with its context, as
 // prosemirror-model's ResolvedPos.

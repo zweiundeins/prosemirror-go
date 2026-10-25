@@ -1,4 +1,4 @@
-package doc
+package prosemirror
 
 import "slices"
 
@@ -33,7 +33,11 @@ func (t *MarkType) Create(attrs map[string]any) (*Mark, error) {
 		o := NewObject()
 		for _, a := range t.attrs {
 			if x, ok := attrs[a.name]; ok {
-				o.Set(a.name, x)
+				v, err := jsValue(x)
+				if err != nil {
+					return nil, err
+				}
+				o.Set(a.name, v)
 			}
 		}
 		v = o

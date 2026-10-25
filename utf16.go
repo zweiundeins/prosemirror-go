@@ -1,4 +1,4 @@
-package doc
+package prosemirror
 
 import (
 	"errors"
@@ -11,7 +11,7 @@ import (
 // ErrSurrogateSplit is returned when a step would cut a character outside
 // the Basic Multilingual Plane (an emoji, say) in half: a position inside a
 // surrogate pair. Browsers never put a caret there.
-var ErrSurrogateSplit = errors.New("doc: a position falls inside a surrogate pair")
+var ErrSurrogateSplit = errors.New("prosemirror: a position falls inside a surrogate pair")
 
 // splitPanic is raised by text cuts inside a surrogate pair; step
 // application turns it into ErrSurrogateSplit.

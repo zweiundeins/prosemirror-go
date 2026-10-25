@@ -1,4 +1,4 @@
-package doc
+package prosemirror
 
 import (
 	"errors"
@@ -256,7 +256,7 @@ func appendValue(b []byte, v any) []byte {
 		}
 		return append(b, '}')
 	}
-	panic(fmt.Sprintf("doc: not a JSON value: %T", v))
+	panic(fmt.Sprintf("prosemirror: not a JSON value: %T", v))
 }
 
 // appendNumber writes f as JavaScript's Number.prototype.toString does.
@@ -369,10 +369,10 @@ type parser struct {
 
 // ErrLoneSurrogate is returned for a JSON string that holds half of a
 // surrogate pair: ProseMirror would keep it, Go's strings cannot.
-var ErrLoneSurrogate = errors.New("doc: a string holds half of a surrogate pair")
+var ErrLoneSurrogate = errors.New("prosemirror: a string holds half of a surrogate pair")
 
 func (p *parser) errorf(format string, args ...any) error {
-	return fmt.Errorf("doc: invalid JSON at offset %d: %s", p.pos, fmt.Sprintf(format, args...))
+	return fmt.Errorf("prosemirror: invalid JSON at offset %d: %s", p.pos, fmt.Sprintf(format, args...))
 }
 
 func (p *parser) ws() {
