@@ -370,7 +370,9 @@ func (h *HTML[R]) dynamicKey(r R, n *Node) string {
 				ok = false
 				return
 			}
-			b.WriteString(strconv.Itoa(len(k)) + ":" + k)
+			b.WriteString(strconv.Itoa(len(k)))
+			b.WriteByte(':')
+			b.WriteString(k)
 		}
 		for _, c := range n.content.nodes {
 			walk(c)
