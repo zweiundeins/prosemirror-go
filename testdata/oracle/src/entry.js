@@ -1,5 +1,5 @@
-// The oracle of internal/doc's differential tests: prosemirror-model and
-// prosemirror-transform with the tickit schema, run in goja by go test.
+// The oracle of prosemirror-go's differential tests: prosemirror-model and
+// prosemirror-transform with the test schema, run in goja by go test.
 // Every function takes and returns JSON strings, so no object crosses
 // between goja and Go.
 import { Node, Fragment } from 'prosemirror-model'

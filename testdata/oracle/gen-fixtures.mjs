@@ -1,4 +1,4 @@
-// Writes the fixtures of internal/doc's differential tests with ProseMirror
+// Writes the fixtures of the differential tests with ProseMirror
 // in V8 (Node). Usage, from this folder: node gen-fixtures.mjs
 //
 // For each document size: <name>-doc.json (a document of about that many KB),
@@ -15,7 +15,7 @@ import { generator } from './src/gen.js'
 
 const here = new URL('.', import.meta.url)
 const out = new URL('../', here)
-const schema = buildSchema(JSON.parse(readFileSync(new URL('../../schema.json', here))))
+const schema = buildSchema(JSON.parse(readFileSync(new URL('../schema.json', here))))
 const write = (name, value) => writeFileSync(new URL(name, out), JSON.stringify(value))
 
 function batches(name, kb, n, seed) {

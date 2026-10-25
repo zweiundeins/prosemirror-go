@@ -1,4 +1,4 @@
-// Generators for the differential tests: documents in the tickit schema, and
+// Generators for the differential tests: documents in the test schema, and
 // edits made by prosemirror-transform the way an editor makes them. Node
 // (js/gen-fixtures.mjs) writes the fixtures with them; the goja oracle runs
 // them inside go test for FuzzRebase. Positions never fall inside a
@@ -35,10 +35,10 @@ class Gen {
   pick(a) { return a[this.int(a.length)] }
   sentence(n) { return Array.from({ length: n }, () => this.pick(words)).join(' ') }
   hex(n) { let s = ''; for (let i = 0; i < n; i++) s += '0123456789abcdef'[this.int(16)]; return s }
-  pageId() { return this.hex(8) + '-' + this.hex(4) + '-7' + this.hex(3) + '-' + this.pick(['8', '9', 'a', 'b']) + this.hex(3) + '-' + this.hex(12) }
-  chip() { return this.n.issue_chip.create({ key: this.pick(['WEB', 'API', 'OPS']) + '-' + (1 + this.int(300)) }) }
-  mention() { return this.n.mention.create({ personId: this.pick(people), label: this.pick(['Ada', 'Grace Hopper', 'Linus', 'Sunny Otter']) }) }
-  pageLink() { return this.n.page_link.create({ pageId: this.pageId() }) }
+  uuid() { return this.hex(8) + '-' + this.hex(4) + '-7' + this.hex(3) + '-' + this.pick(['8', '9', 'a', 'b']) + this.hex(3) + '-' + this.hex(12) }
+  tag() { return this.n.tag.create({ name: this.pick(['WEB', 'API', 'OPS']) + '-' + (1 + this.int(300)) }) }
+  mention() { return this.n.mention.create({ id: this.pick(people), label: this.pick(['Ada', 'Grace Hopper', 'Linus', 'Sunny Otter']) }) }
+  xref() { return this.n.xref.create({ target: this.uuid() }) }
   link() { return this.m.link.create({ href: this.rnd() < 0.8 ? 'https://example.com/' + this.pick(words) : 'mailto:ada@example.com' }) }
 
   inline() {
@@ -52,9 +52,9 @@ class Gen {
       else if (r < 0.72) parts.push(s.text(this.sentence(2) + ' ', [m.em.create()]))
       else if (r < 0.76) parts.push(s.text(this.pick(words), [m.code.create()]), s.text(' '))
       else if (r < 0.82) parts.push(s.text(this.sentence(2), [this.link()]), s.text(' '))
-      else if (r < 0.88) parts.push(this.chip(), s.text(' '))
+      else if (r < 0.88) parts.push(this.tag(), s.text(' '))
       else if (r < 0.93) parts.push(this.mention(), s.text(' '))
-      else if (r < 0.96) parts.push(this.pageLink(), s.text(' '))
+      else if (r < 0.96) parts.push(this.xref(), s.text(' '))
       else parts.push(this.n.hard_break.create())
     }
     return parts
@@ -114,7 +114,7 @@ class Gen {
   textPos(d) { const t = this.pick(this.textblocks(d)); return { t, pos: this.snap(d, t.start + this.int(t.end - t.start + 1)) } }
 
   // One edit of the batch fixtures (typing, deletes, marks, splits, joins,
-  // block types, attrs, wraps, lifts, pastes, chips). Returns a Transform or null.
+  // block types, attrs, wraps, lifts, pastes, atoms). Returns a Transform or null.
   batchEdit(d, noAttr) {
     const { s, n, m } = this
     const tr = new Transform(d)
@@ -148,7 +148,7 @@ class Gen {
         if (range && $f.depth === 1 && t.node.type === n.paragraph) tr.wrap(range, [{ type: n.blockquote }])
         else if (range) { const tgt = liftTarget(range); if (tgt != null) tr.lift(range, tgt) }
       } else if (r < 0.99) { if (!code) tr.replaceWith(pos, pos, s.text('pasted ' + this.pick(words) + ' ', [m.strong.create()])) }
-      else { if (!code) tr.insert(pos, this.chip()) }
+      else { if (!code) tr.insert(pos, this.tag()) }
     } catch (e) { return null }
     return tr.steps.length ? tr : null
   }
@@ -231,7 +231,7 @@ class Gen {
         else if (name === 'table_cell' || name === 'table_header') tr.setNodeAttribute(p, 'colwidth', this.rnd() < 0.5 ? null : [100 + this.int(100)])
         else if (name === 'image') tr.setNodeAttribute(p, 'alt', this.sentence(2))
         else if (name === 'mention') tr.setNodeAttribute(p, 'label', 'Ada')
-        else if (name === 'issue_chip') tr.setNodeAttribute(p, 'key', 'WEB-' + (1 + this.int(300)))
+        else if (name === 'tag') tr.setNodeAttribute(p, 'name', 'WEB-' + (1 + this.int(300)))
         break
       }
       case 13: { // wrap or lift
@@ -257,7 +257,7 @@ class Gen {
       }
       case 15: { // inline atoms
         if (code) break
-        tr.insert(pos, this.pick([() => this.chip(), () => this.mention(), () => this.pageLink(), () => n.hard_break.create()])())
+        tr.insert(pos, this.pick([() => this.tag(), () => this.mention(), () => this.xref(), () => n.hard_break.create()])())
         break
       }
       case 16: { // a block at a block boundary

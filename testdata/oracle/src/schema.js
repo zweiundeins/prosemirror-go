@@ -1,5 +1,5 @@
-// Builds a ProseMirror Schema from the shared JSON spec (internal/doc/schema.json).
-// The browser adds toDOM and parseDOM per name; the oracle needs none.
+// Builds a ProseMirror Schema from a JSON spec in the format NewSchema reads
+// (testdata/schema.json). The oracle needs no toDOM or parseDOM.
 import { Schema } from 'prosemirror-model'
 
 export function buildSchema(spec, extra = {}) {

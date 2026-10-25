@@ -1,8 +1,8 @@
 {
-  "name": "tickit-doc-oracle",
+  "name": "prosemirror-go-oracle",
   "private": true,
   "type": "module",
-  "description": "The test oracle of internal/doc: prosemirror-model and prosemirror-transform with the tickit schema, bundled for goja.",
+  "description": "The test oracle of prosemirror-go: prosemirror-model and prosemirror-transform with the test schema, bundled for goja.",
   "license": "MIT",
   "dependencies": {
     "prosemirror-model": "1.25.12",
