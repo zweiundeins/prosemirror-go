@@ -1,4 +1,4 @@
-package doc
+package prosemirror
 
 import (
 	"encoding/json"
@@ -15,7 +15,7 @@ func loadBatches(b *testing.B, prefix string) batchBench {
 	d := mustDoc(b, string(readFixture(b, prefix+"-doc.json")))
 	var bb batchBench
 	for _, raw := range rawList(b, readFixture(b, prefix+"-batches.json")) {
-		steps, err := ParseSteps(raw)
+		steps, err := parseSteps(raw)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -55,7 +55,7 @@ func benchRebase(b *testing.B, prefix string, k int) {
 	var cs []c
 	var history [][]Step
 	for _, cm := range commits {
-		steps, _ := ParseSteps(cm.Steps)
+		steps, _ := parseSteps(cm.Steps)
 		var since []Step
 		for v := cm.Base; v < len(history); v++ {
 			since = append(since, history[v]...)
@@ -86,7 +86,7 @@ func benchParse(b *testing.B, name string) {
 	b.SetBytes(int64(len(data)))
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if _, err := ParseDoc(data); err != nil {
+		if _, err := parseDoc(data); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -110,7 +110,7 @@ func benchRender(b *testing.B, name string) {
 	d := mustDoc(b, string(readFixture(b, name+".json")))
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		RenderHTML(d, testResolver)
+		testHTML.Render(d, testResolver)
 	}
 }
 
@@ -121,7 +121,7 @@ func benchText(b *testing.B, name string) {
 	d := mustDoc(b, string(readFixture(b, name+".json")))
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		Text(d)
+		testLeaves.Text(d, "\n")
 	}
 }
 
@@ -154,6 +154,6 @@ func BenchmarkDiff20k(b *testing.B) {
 	c := mustDoc(b, string(readFixture(b, "f20k-final.json")))
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		Diff(a, c).HTML(testResolver)
+		testHTML.Diff(Diff(a, c), testResolver)
 	}
 }

@@ -1,11 +1,11 @@
-package doc
+package prosemirror
 
 import (
 	"testing"
 )
 
-// FR-91.1: the text an inline comment is on renders marked, inside the
-// marks of the text and around no atom.
+// The text an inline comment is on renders marked, inside the marks of
+// the text and around no inline node.
 func TestRenderHighlighted(t *testing.T) {
 	two := docOf(`{"type":"paragraph","content":[`+text("Hello world")+`]}`, `{"type":"paragraph","content":[`+text("second")+`]}`)
 	cases := []struct {
@@ -13,38 +13,38 @@ func TestRenderHighlighted(t *testing.T) {
 		hs   []Highlight
 		html string
 	}{
-		{inPara(text("Hello world")), []Highlight{{"c1", 7, 12}}, `<p>Hello <mark class="tk-ic" data-c="c1">world</mark></p>`},
+		{inPara(text("Hello world")), []Highlight{{"c1", 7, 12}}, `<p>Hello <mark class="highlight" data-highlight="c1">world</mark></p>`},
 		{inPara(text("Hello world")), nil, `<p>Hello world</p>`},
 		// Overlapping ranges: the overlap names both.
-		{inPara(text("abcdef")), []Highlight{{"b", 3, 6}, {"a", 1, 4}}, `<p><mark class="tk-ic" data-c="a">ab</mark><mark class="tk-ic" data-c="a b">c</mark><mark class="tk-ic" data-c="b">de</mark>f</p>`},
+		{inPara(text("abcdef")), []Highlight{{"b", 3, 6}, {"a", 1, 4}}, `<p><mark class="highlight" data-highlight="a">ab</mark><mark class="highlight" data-highlight="a b">c</mark><mark class="highlight" data-highlight="b">de</mark>f</p>`},
 		// Inside other marks, and across text nodes.
-		{inPara(text("bold", strong) + `,` + text(" plain")), []Highlight{{"c1", 3, 8}}, `<p><strong>bo<mark class="tk-ic" data-c="c1">ld</mark></strong><mark class="tk-ic" data-c="c1"> pl</mark>ain</p>`},
+		{inPara(text("bold", strong) + `,` + text(" plain")), []Highlight{{"c1", 3, 8}}, `<p><strong>bo<mark class="highlight" data-highlight="c1">ld</mark></strong><mark class="highlight" data-highlight="c1"> pl</mark>ain</p>`},
 		// Across two blocks; an id is escaped.
-		{two, []Highlight{{`x"y`, 7, 17}}, `<p>Hello <mark class="tk-ic" data-c="x&#34;y">world</mark></p><p><mark class="tk-ic" data-c="x&#34;y">sec</mark>ond</p>`},
+		{two, []Highlight{{`x"y`, 7, 17}}, `<p>Hello <mark class="highlight" data-highlight="x&#34;y">world</mark></p><p><mark class="highlight" data-highlight="x&#34;y">sec</mark>ond</p>`},
 		// An atom in the range stays as it is.
-		{inPara(text("a") + `,{"type":"issue_chip","attrs":{"key":"WEB-99"}},` + text("b")), []Highlight{{"c", 1, 4}}, `<p><mark class="tk-ic" data-c="c">a</mark><a class="issue-chip" data-key="WEB-99" href="/WEB-99" data-state="unknown"><span class="issue-chip__key">WEB-99</span><span class="issue-chip__summary">unknown issue</span></a><mark class="tk-ic" data-c="c">b</mark></p>`},
+		{inPara(text("a") + `,{"type":"tag","attrs":{"name":"WEB-99"}},` + text("b")), []Highlight{{"c", 1, 4}}, `<p><mark class="highlight" data-highlight="c">a</mark>#WEB-99<mark class="highlight" data-highlight="c">b</mark></p>`},
 		// Code blocks too.
-		{docOf(`{"type":"code_block","content":[` + text("x := 1") + `]}`), []Highlight{{"c", 1, 2}}, `<pre><code><mark class="tk-ic" data-c="c">x</mark> := 1</code></pre>`},
+		{docOf(`{"type":"code_block","content":[` + text("x := 1") + `]}`), []Highlight{{"c", 1, 2}}, `<pre><code><mark class="highlight" data-highlight="c">x</mark> := 1</code></pre>`},
 		// A cut inside a surrogate pair moves before it; a range beyond the
 		// document, empty or reversed breaks nothing.
 		{inPara(text("a😀b")), []Highlight{{"c", 2, 3}}, `<p>a😀b</p>`},
-		{inPara(text("a😀b")), []Highlight{{"c", 2, 4}}, `<p>a<mark class="tk-ic" data-c="c">😀</mark>b</p>`},
-		{inPara(text("ab")), []Highlight{{"c", 2, 99}, {"d", 2, 2}, {"e", 3, 1}}, `<p>a<mark class="tk-ic" data-c="c">b</mark></p>`},
+		{inPara(text("a😀b")), []Highlight{{"c", 2, 4}}, `<p>a<mark class="highlight" data-highlight="c">😀</mark>b</p>`},
+		{inPara(text("ab")), []Highlight{{"c", 2, 99}, {"d", 2, 2}, {"e", 3, 1}}, `<p>a<mark class="highlight" data-highlight="c">b</mark></p>`},
 	}
 	for _, c := range cases {
 		d := mustDoc(t, c.doc)
-		if got := RenderHighlighted(d, testResolver, c.hs); got != c.html {
+		if got := testHTML.RenderHighlighted(d, testResolver, c.hs); got != c.html {
 			t.Errorf("%s %v:\n got %s\nwant %s", c.doc, c.hs, got, c.html)
 		}
-		var bc BlockCache
+		bc := NewBlockCache(testHTML)
 		if got := bc.RenderHighlighted(d, testResolver, c.hs); got != c.html {
 			t.Errorf("cache %s %v:\n got %s\nwant %s", c.doc, c.hs, got, c.html)
 		}
 	}
-	// Without highlights it is RenderHTML.
+	// Without highlights it is Render.
 	d := mustDoc(t, two)
-	if RenderHighlighted(d, nil, nil) != RenderHTML(d, nil) {
-		t.Error("no highlights differ from RenderHTML")
+	if testHTML.RenderHighlighted(d, testRes{}, nil) != testHTML.Render(d, testRes{}) {
+		t.Error("no highlights differ from Render")
 	}
 }
 
@@ -52,31 +52,31 @@ func TestRenderHighlighted(t *testing.T) {
 // keeps it when only another block's do.
 func TestBlockCacheHighlights(t *testing.T) {
 	d := mustDoc(t, docOf(`{"type":"paragraph","content":[`+text("one")+`]}`, `{"type":"paragraph","content":[`+text("two")+`]}`))
-	var bc BlockCache
-	if got := bc.RenderHighlighted(d, nil, []Highlight{{"c", 1, 2}}); got != `<p><mark class="tk-ic" data-c="c">o</mark>ne</p><p>two</p>` {
+	bc := NewBlockCache(testHTML)
+	if got := bc.RenderHighlighted(d, testRes{}, []Highlight{{"c", 1, 2}}); got != `<p><mark class="highlight" data-highlight="c">o</mark>ne</p><p>two</p>` {
 		t.Errorf("first %s", got)
 	}
 	second := d.Child(1)
 	before := bc.m[second]
-	if got := bc.RenderHighlighted(d, nil, []Highlight{{"c", 6, 8}}); got != `<p>one</p><p><mark class="tk-ic" data-c="c">tw</mark>o</p>` {
+	if got := bc.RenderHighlighted(d, testRes{}, []Highlight{{"c", 6, 8}}); got != `<p>one</p><p><mark class="highlight" data-highlight="c">tw</mark>o</p>` {
 		t.Errorf("moved %s", got)
 	}
 	if bc.m[second] == before {
 		t.Error("the second block kept its old HTML")
 	}
-	if got := bc.Render(d, nil); got != `<p>one</p><p>two</p>` {
+	if got := bc.Render(d, testRes{}); got != `<p>one</p><p>two</p>` {
 		t.Errorf("none %s", got)
 	}
 }
 
-// FR-91.2: a range moves with its text; typing at its edges stays
+// A range moves with its text; typing at its edges stays
 // outside; deleting its text leaves it gone.
 func TestMapRange(t *testing.T) {
 	d := mustDoc(t, inPara(text("say hello now")))
 	// "hello" is 5 to 10.
 	apply := func(t *testing.T, raw string) (Doc, []Step) {
 		t.Helper()
-		steps, err := ParseSteps([]byte(raw))
+		steps, err := parseSteps([]byte(raw))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -126,7 +126,7 @@ func TestMapRange(t *testing.T) {
 	}
 	// A range over two blocks whose text went, the blocks staying.
 	two := mustDoc(t, docOf(`{"type":"paragraph","content":[`+text("ab")+`]}`, `{"type":"paragraph","content":[`+text("cd")+`]}`))
-	steps, _ := ParseSteps([]byte(`[{"stepType":"replace","from":2,"to":3},{"stepType":"replace","from":4,"to":5}]`))
+	steps, _ := parseSteps([]byte(`[{"stepType":"replace","from":2,"to":3},{"stepType":"replace","from":4,"to":5}]`))
 	next, err := Apply(two, steps)
 	if err != nil {
 		t.Fatal(err)

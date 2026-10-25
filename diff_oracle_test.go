@@ -1,4 +1,4 @@
-package doc
+package prosemirror
 
 import (
 	"bytes"
@@ -20,7 +20,7 @@ func TestFixtureDocsRoundTrip(t *testing.T) {
 	o := theOracle(t)
 	for _, name := range docFixtures {
 		data := bytes.TrimSpace(readFixture(t, name+".json"))
-		d, err := ParseDoc(data)
+		d, err := parseDoc(data)
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
@@ -45,7 +45,7 @@ func TestFixtureDocsRoundTrip(t *testing.T) {
 func applyAndCompare(t *testing.T, prefix string, every int) {
 	o := theOracle(t)
 	data := readFixture(t, prefix+"-doc.json")
-	d, err := ParseDoc(data)
+	d, err := parseDoc(data)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func applyAndCompare(t *testing.T, prefix string, every int) {
 	steps := 0
 	for bi, raw := range rawList(t, readFixture(t, prefix+"-batches.json")) {
 		for si, sraw := range rawList(t, raw) {
-			st, err := tickit.ParseStep(sraw)
+			st, err := testSchema.ParseStep(sraw)
 			if err != nil {
 				t.Fatalf("batch %d step %d: %v", bi, si, err)
 			}
@@ -121,7 +121,7 @@ type commitJSON struct {
 func replayCommits(t *testing.T, prefix string, k int) {
 	o := theOracle(t)
 	data := readFixture(t, prefix+"-doc.json")
-	d, err := ParseDoc(data)
+	d, err := parseDoc(data)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +135,7 @@ func replayCommits(t *testing.T, prefix string, k int) {
 	var historyJSON []string
 	nsteps := 0
 	for ci, c := range commits {
-		steps, err := ParseSteps(c.Steps)
+		steps, err := parseSteps(c.Steps)
 		if err != nil {
 			t.Fatalf("commit %d: %v", ci, err)
 		}

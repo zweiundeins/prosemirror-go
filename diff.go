@@ -1,4 +1,4 @@
-package doc
+package prosemirror
 
 import (
 	"strings"
@@ -97,7 +97,7 @@ func FindDiffEnd(a, b Fragment, posA, posB int) (int, int, bool) {
 }
 
 // RestoreStep returns one replace step that turns current into old
-// (FR-89): it replaces only the range where the two differ, so the
+// (a restore): it replaces only the range where the two differ, so the
 // positions of open editors outside it keep their place. Nil when the
 // documents are equal.
 func RestoreStep(current, old Doc) Step {
@@ -130,7 +130,7 @@ func tryRestore(current, old Doc, start, endA, endB int) (step Step) {
 	return s
 }
 
-// DocDiff compares two versions of a page (FR-88): top-level blocks are
+// DocDiff compares two versions of a document: top-level blocks are
 // matched by content, paired blocks of one type are compared word by
 // word, atom by atom and by marks.
 type DocDiff struct {
@@ -405,17 +405,16 @@ func backtrack(trace [][]int, d, off, n, m, a0, b0 int) []editOp {
 	return out
 }
 
-// HTML renders the comparison: the newer version, with added text in
+// Diff renders a comparison: the newer version, with added text in
 // <ins class="diff-ins"> and removed text in <del class="diff-del">; whole
-// blocks added or removed carry data-diff="ins" or "del" (FR-88.1).
-func (d *DocDiff) HTML(r Resolver) string {
+// blocks added or removed carry data-diff="ins" or "del".
+func (h *HTML[R]) Diff(d *DocDiff, r R) string {
 	var b strings.Builder
-	w := htmlWriter{b: &b, r: resolverOrNone(r)}
-	w.changes(d.changes)
+	h.writer(&b, r).changes(d.changes)
 	return b.String()
 }
 
-func (w htmlWriter) changes(cs []change) {
+func (w *HTMLWriter[R]) changes(cs []change) {
 	for _, c := range cs {
 		switch c.kind {
 		case same:
@@ -439,16 +438,16 @@ func (w htmlWriter) changes(cs []change) {
 }
 
 // whole renders a block added or removed as a whole.
-func (w htmlWriter) whole(n *Node, kind string) {
+func (w *HTMLWriter[R]) whole(n *Node, kind string) {
 	open, close := `<del class="diff-del">`, `</del>`
 	if kind == "ins" {
 		open, close = `<ins class="diff-ins">`, `</ins>`
 	}
 	extra := ` data-diff="` + kind + `"`
 	if n.IsLeaf() {
-		w.s(open)
+		w.Raw(open)
 		w.wrap(n, extra, nil)
-		w.s(close)
+		w.Raw(close)
 		return
 	}
 	var inner func(n *Node, extra string)
@@ -456,17 +455,17 @@ func (w htmlWriter) whole(n *Node, kind string) {
 		w.wrap(n, extra, func() {
 			if n.typ.inlineContent || n.typ.code {
 				if n.content.size > 0 {
-					w.s(open)
-					w.body(n)
-					w.s(close)
+					w.Raw(open)
+					w.defaultBody(n)
+					w.Raw(close)
 				}
 				return
 			}
 			for _, c := range n.content.nodes {
 				if c.IsLeaf() {
-					w.s(open)
+					w.Raw(open)
 					w.block(c)
-					w.s(close)
+					w.Raw(close)
 				} else {
 					inner(c, "")
 				}
@@ -476,7 +475,7 @@ func (w htmlWriter) whole(n *Node, kind string) {
 	inner(n, extra)
 }
 
-func (w htmlWriter) tokenOps(n *Node, ops []tokenOp) {
+func (w *HTMLWriter[R]) tokenOps(n *Node, ops []tokenOp) {
 	code := n.typ.code
 	for i := 0; i < len(ops); {
 		j := i
@@ -485,13 +484,13 @@ func (w htmlWriter) tokenOps(n *Node, ops []tokenOp) {
 		}
 		switch ops[i].kind {
 		case deleted:
-			w.s(`<del class="diff-del">`)
+			w.Raw(`<del class="diff-del">`)
 		case inserted:
-			w.s(`<ins class="diff-ins">`)
+			w.Raw(`<ins class="diff-ins">`)
 		}
 		if code {
 			for _, o := range ops[i:j] {
-				w.esc(o.tok.text)
+				w.Text(o.tok.text)
 			}
 		} else {
 			var nodes []*Node
@@ -499,19 +498,17 @@ func (w htmlWriter) tokenOps(n *Node, ops []tokenOp) {
 				if o.tok.atom != nil {
 					nodes = append(nodes, o.tok.atom)
 				} else {
-					nodes = append(nodes, newText(tickitText(n), o.tok.text, utf16Len(o.tok.text), o.tok.marks))
+					nodes = append(nodes, newText(n.typ.schema.text, o.tok.text, utf16Len(o.tok.text), o.tok.marks))
 				}
 			}
 			w.inline(fragmentFromArray(nodes).nodes)
 		}
 		switch ops[i].kind {
 		case deleted:
-			w.s(`</del>`)
+			w.Raw(`</del>`)
 		case inserted:
-			w.s(`</ins>`)
+			w.Raw(`</ins>`)
 		}
 		i = j
 	}
 }
-
-func tickitText(n *Node) *NodeType { return n.typ.schema.text }

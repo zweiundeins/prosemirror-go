@@ -1,4 +1,4 @@
-package doc
+package prosemirror
 
 import (
 	"encoding/json"
@@ -11,7 +11,7 @@ import (
 )
 
 // The oracle: testdata/oracle/oracle.js (prosemirror-model 1.25.12 and
-// prosemirror-transform 1.12.2 with the tickit schema) run in goja. Only
+// prosemirror-transform 1.12.2 with the test schema) run in goja. Only
 // tests import goja.
 
 // goja's String.prototype.split leaves empty strings between the tokens of
@@ -58,7 +58,7 @@ func loadOracle(t testing.TB) *oracle {
 		t.Fatal(err)
 	}
 	o := &oracle{vm: vm, o: vm.Get("oracle").ToObject(vm)}
-	if _, err := o.call("init", string(schemaJSON)); err != nil {
+	if _, err := o.call("init", string(readFixture(t, "schema.json"))); err != nil {
 		t.Fatal(err)
 	}
 	return o

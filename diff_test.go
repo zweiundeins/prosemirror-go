@@ -1,4 +1,4 @@
-package doc
+package prosemirror
 
 import (
 	"encoding/json"
@@ -68,11 +68,11 @@ func TestDiff(t *testing.T) {
 		`{"type":"paragraph","content":[`+text("<new>")+`]}`,
 	))
 	d := Diff(a, b)
-	want := `<h2>Release plan</h2>` +
+	want := `<h1>Release plan</h1>` +
 		`<p>We ship the <del class="diff-del">editor</del><ins class="diff-ins"><strong>editor</strong></ins> on <del class="diff-del">Monday</del><ins class="diff-ins">Tuesday</ins>.</p>` +
 		`<ul><li><p>one</p></li><li><p><del class="diff-del">two</del><ins class="diff-ins">2</ins></p></li><li data-diff="ins"><p><ins class="diff-ins">three</ins></p></li></ul>` +
 		`<del class="diff-del"><hr data-diff="del"></del><p data-diff="ins"><ins class="diff-ins">&lt;new&gt;</ins></p>`
-	if got := d.HTML(nil); got != want {
+	if got := testHTML.Diff(d, testResolver); got != want {
 		t.Errorf("diff:\n got %s\nwant %s", got, want)
 	}
 	if d.Equal() || d.Inserted == 0 || d.Deleted == 0 {
@@ -84,26 +84,7 @@ func TestDiff(t *testing.T) {
 	// Large documents compare in reasonable time and render.
 	f := mustDoc(t, string(readFixture(t, "f200k-doc.json")))
 	g := mustDoc(t, string(readFixture(t, "f200k-final.json")))
-	if h := Diff(f, g).HTML(nil); !strings.Contains(h, "diff-ins") {
+	if h := testHTML.Diff(Diff(f, g), testResolver); !strings.Contains(h, "diff-ins") {
 		t.Error("no insertions in the fixture diff")
-	}
-}
-
-// FR-152: a page exports as Markdown.
-func TestMarkdown(t *testing.T) {
-	d := mustDoc(t, docOf(
-		`{"type":"heading","attrs":{"level":1},"content":[`+text("Plan")+`]}`,
-		`{"type":"paragraph","content":[`+text("a ")+`,`+text("bold", strong)+`,`+text(" *star* ")+`,`+text("x", link("https://x.y"))+`,`+text(" ")+`,`+text("bad", link("javascript:1"))+`,{"type":"issue_chip","attrs":{"key":"WEB-12"}}]}`,
-		`{"type":"task_list","content":[{"type":"task_item","attrs":{"checked":true},"content":[{"type":"paragraph","content":[`+text("done")+`]}]},{"type":"task_item","content":[{"type":"paragraph","content":[`+text("open")+`]}]}]}`,
-		`{"type":"ordered_list","attrs":{"order":3},"content":[{"type":"list_item","content":[{"type":"paragraph","content":[`+text("three")+`]}]}]}`,
-		`{"type":"blockquote","content":[`+para+`]}`,
-		`{"type":"code_block","attrs":{"language":"go"},"content":[`+text("x := 1\ny")+`]}`,
-		`{"type":"table","content":[{"type":"table_row","content":[{"type":"table_header","content":[{"type":"paragraph","content":[`+text("h|1")+`]}]}]},{"type":"table_row","content":[{"type":"table_cell","content":[`+para+`]}]}]}`,
-		`{"type":"horizontal_rule"}`,
-		`{"type":"image","attrs":{"imageId":"img-1","alt":"a [diagram]"}}`,
-	))
-	want := "## Plan\n\na **bold** \\*star\\* [x](<https://x.y>) badWEB-12\n\n- [x] done\n- [ ] open\n\n3. three\n\n> hi\n\n```go\nx := 1\ny\n```\n\n| h\\|1 |\n| --- |\n| hi |\n\n---\n\n![a \\[diagram\\]](/img/lib/img-1)\n"
-	if got := Markdown(d, nil); got != want {
-		t.Errorf("markdown:\n%s\nwant\n%s", got, want)
 	}
 }

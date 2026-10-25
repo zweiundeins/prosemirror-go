@@ -1,4 +1,4 @@
-package doc
+package prosemirror
 
 import (
 	"slices"
@@ -6,9 +6,10 @@ import (
 	"strings"
 )
 
-// Highlight is a range of a document that the page shows marked: the text
-// an inline comment is on (FR-91). Its positions are the document's; the
-// marks live outside the document, so the schema knows nothing of them.
+// Highlight is a range of a document that a render shows marked, such as
+// the text an inline comment is on. Its positions are the document's; the
+// highlights live outside the document, so the schema knows nothing of
+// them.
 type Highlight struct {
 	ID       string
 	From, To int
@@ -21,26 +22,27 @@ type hlState struct {
 	hs  []Highlight
 }
 
-// RenderHighlighted renders the document as RenderHTML does, with the text
-// inside each highlight in <mark class="tk-ic" data-c="<ids>">, the ids of
-// every highlight over it separated by spaces. Atoms stay unmarked; a
+// RenderHighlighted renders the document as Render does, with the text
+// inside each highlight in <mark class="highlight" data-highlight="<ids>">
+// (HighlightClass, HighlightAttr), the ids of every highlight over it
+// separated by spaces. Inline nodes that are not text stay unmarked; a
 // range outside the document marks what it covers of it.
-func RenderHighlighted(d Doc, r Resolver, hs []Highlight) string {
+func (h *HTML[R]) RenderHighlighted(d Doc, r R, hs []Highlight) string {
 	hs = sortHighlights(hs)
 	var b strings.Builder
 	b.Grow(d.content.size * 2)
 	pos := 0
 	for _, n := range d.content.nodes {
-		b.WriteString(renderBlockAt(n, r, pos, hs))
+		b.WriteString(h.renderBlockAt(n, r, pos, hs))
 		pos += n.size
 	}
 	return b.String()
 }
 
 // renderBlockAt renders a block that starts at pos.
-func renderBlockAt(n *Node, r Resolver, pos int, hs []Highlight) string {
+func (h *HTML[R]) renderBlockAt(n *Node, r R, pos int, hs []Highlight) string {
 	var b strings.Builder
-	w := htmlWriter{b: &b, r: resolverOrNone(r)}
+	w := h.writer(&b, r)
 	if highlightsIn(hs, pos, pos+n.size) != "" {
 		w.hl = &hlState{pos: pos, hs: hs}
 	}
@@ -77,9 +79,9 @@ func highlightsIn(hs []Highlight, from, to int) string {
 }
 
 // text writes a text node, its highlighted parts marked.
-func (w htmlWriter) text(n *Node) {
+func (w *HTMLWriter[R]) text(n *Node) {
 	if w.hl == nil {
-		w.esc(n.text)
+		w.Text(n.text)
 		return
 	}
 	start, end := w.hl.pos, w.hl.pos+n.size
@@ -103,19 +105,26 @@ func (w htmlWriter) text(n *Node) {
 			}
 		}
 		if len(ids) == 0 {
-			w.esc(n.text[a:b])
+			w.Text(n.text[a:b])
 			continue
 		}
-		w.s(`<mark class="tk-ic" data-c="`)
-		w.esc(strings.Join(ids, " "))
-		w.s(`">`)
-		w.esc(n.text[a:b])
-		w.s(`</mark>`)
+		class, attr := w.h.HighlightClass, w.h.HighlightAttr
+		if class == "" {
+			class = "highlight"
+		}
+		if attr == "" {
+			attr = "data-highlight"
+		}
+		w.Raw(`<mark class="` + class + `" ` + attr + `="`)
+		w.Text(strings.Join(ids, " "))
+		w.Raw(`">`)
+		w.Text(n.text[a:b])
+		w.Raw(`</mark>`)
 	}
 }
 
 // advance moves the renderer's position past an inline node.
-func (w htmlWriter) advance(n *Node) {
+func (w *HTMLWriter[R]) advance(n *Node) {
 	if w.hl != nil {
 		w.hl.pos += n.size
 	}
@@ -136,8 +145,8 @@ func safeByteOffset(s string, units, off int) (b int) {
 }
 
 // InlineText is the text between from and to without separators: the
-// characters of its text nodes alone, as the page compares what a person
-// selected (FR-91). ok is false for a range outside the document, a
+// characters of its text nodes alone, to compare with what a person
+// selected. ok is false for a range outside the document, a
 // reversed one, and one that cuts a character in half.
 func InlineText(d Doc, from, to int) (s string, ok bool) {
 	if from < 0 || to > d.content.size || from > to {
@@ -203,4 +212,24 @@ func MapRange(next Doc, steps []Step, from, to int) (nf, nt int, gone bool) {
 		}
 	}
 	return nf, nt, false
+}
+
+// LeafText says what leaf nodes other than text stand for in plain text,
+// by type name: a mention its name, a hard break a newline, an image its
+// alt text. Its Leaf
+// method is the leafText argument of TextBetween.
+type LeafText map[string]func(n *Node) string
+
+// Leaf returns what n stands for; "" for a type without a function.
+func (l LeafText) Leaf(n *Node) string {
+	if f := l[n.typ.name]; f != nil {
+		return f(n)
+	}
+	return ""
+}
+
+// Text returns the document's plain text, for search and feeds: blocks
+// separated by sep, leaves as l says.
+func (l LeafText) Text(d Doc, sep string) string {
+	return d.TextBetween(0, d.content.size, sep, l.Leaf)
 }

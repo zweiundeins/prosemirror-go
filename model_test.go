@@ -1,4 +1,4 @@
-package doc
+package prosemirror
 
 import (
 	"encoding/json"
@@ -9,12 +9,6 @@ import (
 	"testing"
 )
 
-func docOf(blocks ...string) string {
-	return `{"type":"doc","content":[` + strings.Join(blocks, ",") + `]}`
-}
-
-const para = `{"type":"paragraph","content":[{"type":"text","text":"hi"}]}`
-
 // check() agrees with the oracle on hand-made documents, valid and not,
 // with prosemirror-model's messages.
 func TestCheckAgreesWithOracle(t *testing.T) {
@@ -23,11 +17,11 @@ func TestCheckAgreesWithOracle(t *testing.T) {
 		docOf(para),
 		`{"type":"doc"}`,
 		docOf(`{"type":"paragraph","content":[{"type":"heading","attrs":{"level":1}}]}`),
-		docOf(`{"type":"paragraph","content":[{"type":"issue_chip"}]}`),
-		docOf(`{"type":"paragraph","content":[{"type":"issue_chip","attrs":{}}]}`),
-		docOf(`{"type":"paragraph","content":[{"type":"issue_chip","attrs":""}]}`),
-		docOf(`{"type":"paragraph","content":[{"type":"issue_chip","attrs":{"key":7}}]}`),
-		docOf(`{"type":"paragraph","content":[{"type":"issue_chip","attrs":{"key":"WEB-1","extra":1}}]}`),
+		docOf(`{"type":"paragraph","content":[{"type":"tag"}]}`),
+		docOf(`{"type":"paragraph","content":[{"type":"tag","attrs":{}}]}`),
+		docOf(`{"type":"paragraph","content":[{"type":"tag","attrs":""}]}`),
+		docOf(`{"type":"paragraph","content":[{"type":"tag","attrs":{"name":7}}]}`),
+		docOf(`{"type":"paragraph","content":[{"type":"tag","attrs":{"name":"WEB-1","extra":1}}]}`),
 		docOf(`{"type":"video"}`),
 		docOf(`{"type":"heading","attrs":{"level":"2"},"content":[{"type":"text","text":"x"}]}`),
 		docOf(`{"type":"heading","attrs":{"level":null}}`),
@@ -58,12 +52,12 @@ func TestCheckAgreesWithOracle(t *testing.T) {
 		docOf(`{"type":"table","content":[{"type":"table_row","content":[{"type":"table_cell","attrs":{"colwidth":[100,{"b":1,"2":0,"a":[]}]},"content":[` + para + `]}]}]}`),
 		docOf(`{"type":"bullet_list","content":[{"type":"list_item","content":[{"type":"bullet_list","content":[{"type":"list_item","content":[` + para + `]}]}]}]}`),
 		docOf(`{"type":"paragraph","content":[{"type":"text","text":"tab\tquote\" back\\ ctl\u0001 é 😀 \u2028"}]}`),
-		docOf(`{"type":"paragraph","content":[{"type":"mention","attrs":{"personId":"s-priya"},"marks":[{"type":"link","attrs":{"href":"https://x.y"}}]}]}`),
+		docOf(`{"type":"paragraph","content":[{"type":"mention","attrs":{"id":"s-priya"},"marks":[{"type":"link","attrs":{"href":"https://x.y"}}]}]}`),
 		`{"type":"paragraph"}`,
 	}
 	for i, c := range cases {
 		want := o.must(t, "check", c)
-		_, err := ParseDoc([]byte(c))
+		_, err := parseDoc([]byte(c))
 		got := ""
 		if err != nil {
 			got = err.Error()
@@ -77,7 +71,7 @@ func TestCheckAgreesWithOracle(t *testing.T) {
 		}
 		if err == nil {
 			rt := o.must(t, "roundtrip", c)
-			d, _ := ParseDoc([]byte(c))
+			d, _ := parseDoc([]byte(c))
 			if out, _ := MarshalDoc(d); string(out) != rt {
 				t.Errorf("case %d: writes %s, oracle %s", i, out, rt)
 			}
@@ -89,12 +83,12 @@ func TestCheckAgreesWithOracle(t *testing.T) {
 // UTF-8 strings: Go refuses the document.
 func TestLoneSurrogateRefused(t *testing.T) {
 	for _, s := range []string{`\ud83d`, `\ude00`, `a\ud83dx`, `\ud83d\u0041`} {
-		_, err := ParseDoc([]byte(docOf(`{"type":"paragraph","content":[{"type":"text","text":"` + s + `"}]}`)))
+		_, err := parseDoc([]byte(docOf(`{"type":"paragraph","content":[{"type":"text","text":"` + s + `"}]}`)))
 		if !errors.Is(err, ErrLoneSurrogate) {
 			t.Errorf("%s: %v", s, err)
 		}
 	}
-	d, err := ParseDoc([]byte(docOf(`{"type":"paragraph","content":[{"type":"text","text":"\ud83d\ude00"}]}`)))
+	d, err := parseDoc([]byte(docOf(`{"type":"paragraph","content":[{"type":"text","text":"\ud83d\ude00"}]}`)))
 	if err != nil || d.Child(0).Child(0).Text() != "😀" || d.Child(0).Child(0).NodeSize() != 2 {
 		t.Fatalf("pair: %v", err)
 	}
@@ -104,7 +98,7 @@ func TestLoneSurrogateRefused(t *testing.T) {
 		`{"stepType":"replace","from":1,"to":2}`,
 		`{"stepType":"addMark","mark":{"type":"em"},"from":2,"to":3}`,
 	} {
-		s, err := tickit.ParseStep([]byte(st))
+		s, err := testSchema.ParseStep([]byte(st))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -126,7 +120,7 @@ func TestRefusedSteps(t *testing.T) {
 		`{"stepType":"bogus"}`,
 		`{}`,
 	} {
-		if _, err := tickit.ParseStep([]byte(st)); err == nil {
+		if _, err := testSchema.ParseStep([]byte(st)); err == nil {
 			t.Errorf("%s: accepted", st)
 		}
 	}
@@ -194,7 +188,7 @@ func TestMappingAgreesWithOracle(t *testing.T) {
 			g := a + r.IntN(b-a+1)
 			st = fmt.Sprintf(`{"stepType":"replaceAround","from":%d,"to":%d,"gapFrom":%d,"gapTo":%d,"insert":0}`, a, b, g, g+r.IntN(b-g+1))
 		}
-		s, err := tickit.ParseStep([]byte(st))
+		s, err := testSchema.ParseStep([]byte(st))
 		if err != nil {
 			t.Fatal(err)
 		}
