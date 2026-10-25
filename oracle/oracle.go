@@ -1,8 +1,9 @@
 // Package oracle runs the real prosemirror-model 1.25.12 and
 // prosemirror-transform 1.12.2 in goja, for tests that check Go code
 // against ProseMirror: the bundle oracle.js (built from src/ by build.sh,
-// committed) is embedded. It is for tests only; it brings goja, which the
-// prosemirror package does not import.
+// committed) is embedded. It is for tests only, a module of its own
+// (github.com/zweiundeins/prosemirror-go/oracle) that brings goja, which
+// the prosemirror module does not require.
 //
 // Every function takes and returns JSON strings, so no object crosses
 // between goja and Go. An Oracle is safe for concurrent use; goja keeps

@@ -88,14 +88,18 @@
 // # The oracle
 //
 // The differential tests run the real prosemirror-model and
-// prosemirror-transform in goja inside go test, without Node: package
-// oracle embeds the bundle oracle/oracle.js (committed), which holds them,
-// the rebase and the fixture generator; the tests build it with the test
-// schema of testdata/schema.json, and an app can build it with its own.
-// goja is imported by package oracle and tests only. Its
+// prosemirror-transform in goja inside go test, without Node. They live in
+// the module github.com/zweiundeins/prosemirror-go/oracle (the oracle/
+// folder), so that this module requires nothing and an app's module graph
+// holds no goja. Package oracle embeds the bundle oracle/oracle.js
+// (committed), which holds ProseMirror, the rebase and the fixture
+// generator; its tests build it with the test schema of
+// testdata/schema.json and check this package against the fixtures there,
+// and an app can build it with its own schema. goja's
 // String.prototype.split differs from V8's for the regular expression of
 // prosemirror-model's content-expression tokenizer, so package oracle
-// patches that one call when it loads the bundle. Every fixture document must parse and write back byte-equal,
+// patches that one call when it loads the bundle. Every fixture document
+// must parse and write back byte-equal,
 // check must agree on valid and hand-made invalid documents with the same
 // message, every batch and rebased commit must end with the oracle's steps
 // and V8's document, and FuzzRebase has the oracle's generator make
@@ -109,6 +113,7 @@
 //	npm ci             # versions pinned in package.json and package-lock.json
 //	./build.sh         # esbuild: oracle.js
 //	node gen-fixtures.mjs
-//	cd .. && go test ./...
+//	go test ./...      # the oracle module
 //	go test -run '^$' -fuzz FuzzRebase -fuzztime 10m
+//	cd .. && go test ./...
 package prosemirror

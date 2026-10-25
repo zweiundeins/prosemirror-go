@@ -62,12 +62,13 @@ fmt.Println(html.Render(next, Names{"u1": "Ada"}))
 
 ## Tests
 
-    go test ./...                                  # includes the oracle tests, about 5 s
-    go test -run '^$' -fuzz FuzzRebase -fuzztime 1m
+    go test ./...                                  # the package, its rules and renderers
+    cd oracle && go test ./...                     # against ProseMirror in goja, about 5 s
+    cd oracle && go test -run '^$' -fuzz FuzzRebase -fuzztime 1m
 
-The oracle tests run `oracle/oracle.js`, a committed bundle of prosemirror-model, prosemirror-transform, the rebase and a document generator, inside goja: fixture documents parse and write back byte for byte, `check` gives the same verdicts and messages, 200 batches of steps and 1,500 rebased commits end in V8's documents, and the fuzzer has the generator make documents and concurrent commits that Go must rebase to the same steps. The test schema (`testdata/schema.json`) holds a typical editor's nodes and four app nodes (`tag`, `mention`, `xref`, `embed`). The package documentation says how to change the ProseMirror versions and regenerate the fixtures in Node.
+The oracle tests are a module of their own, `github.com/zweiundeins/prosemirror-go/oracle` in `oracle/`, so that this module requires nothing: importing `prosemirror` brings no goja into an app's module graph. Its `go.mod` replaces prosemirror-go with `../`, as lith's nested modules do, and it tags as `oracle/vX.Y.Z`. They run `oracle/oracle.js`, a committed bundle of prosemirror-model, prosemirror-transform, the rebase and a document generator, inside goja: fixture documents parse and write back byte for byte, `check` gives the same verdicts and messages, 200 batches of steps and 1,500 rebased commits end in V8's documents, and the fuzzer has the generator make documents and concurrent commits that Go must rebase to the same steps. The test schema (`testdata/schema.json`) holds a typical editor's nodes and four app nodes (`tag`, `mention`, `xref`, `embed`). The package documentation says how to change the ProseMirror versions and regenerate the fixtures in Node.
 
-**Your own schema against ProseMirror.** Package `oracle` (`github.com/zweiundeins/prosemirror-go/oracle`) is the oracle the tests use, for an app's tests: `oracle.New(schemaJSON)` starts ProseMirror in goja with the app's schema, and `Check`, `Roundtrip`, `Load`, `Apply`, `JSON` and `Rebase` answer as prosemirror-model and prosemirror-transform do, so the app compares what prosemirror-go does with its documents and steps. It imports goja; the `prosemirror` package does not. [BENCHMARKS.md](BENCHMARKS.md) has the measured times.
+**Your own schema against ProseMirror.** Package `oracle` is the oracle the tests use, for an app's tests too: the app requires `github.com/zweiundeins/prosemirror-go/oracle` (in its tests only, so goja stays out of its binary), and `oracle.New(schemaJSON)` starts ProseMirror in goja with the app's schema; `Check`, `Roundtrip`, `Load`, `Apply`, `JSON` and `Rebase` answer as prosemirror-model and prosemirror-transform do, so the app compares what prosemirror-go does with its documents and steps. [BENCHMARKS.md](BENCHMARKS.md) has the measured times.
 
 ## Licence
 

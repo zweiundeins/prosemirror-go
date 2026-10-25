@@ -1,6 +1,7 @@
 package prosemirror
 
 import (
+	"encoding/json"
 	"net/url"
 	"os"
 	"strconv"
@@ -131,4 +132,37 @@ var testLeaves = LeafText{
 	"mention":    func(n *Node) string { return "@" + n.AttrString("label") },
 	"tag":        func(n *Node) string { return "#" + n.AttrString("name") },
 	"image":      func(n *Node) string { return n.AttrString("alt") },
+}
+
+func readFixture(t testing.TB, name string) []byte {
+	t.Helper()
+	b, err := os.ReadFile("testdata/" + name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+// rawList splits a JSON array into its elements.
+func rawList(t testing.TB, data []byte) []json.RawMessage {
+	t.Helper()
+	var out []json.RawMessage
+	if err := json.Unmarshal(data, &out); err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+// The fixtures' documents, written in V8 by oracle/gen-fixtures.mjs; the
+// oracle module's tests check them against ProseMirror.
+var docFixtures = []string{
+	"f20k-doc", "f20k-final", "f200k-doc", "f200k-final",
+	"f20k-k0-final", "f20k-k1-final", "f20k-k5-final", "f20k-k20-final", "f200k-k5-final",
+}
+
+type commitJSON struct {
+	Base    int             `json:"base"`
+	Steps   json.RawMessage `json:"steps"`
+	Applied json.RawMessage `json:"applied"`
+	Error   *string         `json:"error"`
 }
